@@ -1,0 +1,600 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>鸣潮抽卡模拟器</title>
+<style>
+  :root {
+    --bg: #f4f6fa; --card: #ffffff; --ink: #1f2733; --muted: #6b7686;
+    --accent: #3f6ae0; --accent-2: #18a06b; --danger: #d9534f; --line: #e6eaf0;
+    --radius: 14px; --shadow: 0 6px 24px rgba(30, 50, 90, 0.08);
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--ink);
+    font-family: "Microsoft YaHei", "PingFang SC", "Segoe UI", system-ui, sans-serif; line-height: 1.6; }
+  .wrap { max-width: 1120px; margin: 0 auto; padding: 28px 20px 60px; }
+  header { text-align: center; margin-bottom: 24px; }
+  header h1 { margin: 0; font-size: 26px; letter-spacing: 1px; }
+  header p { margin: 6px 0 0; color: var(--muted); font-size: 14px; }
+
+  .layout { display: grid; grid-template-columns: 340px 1fr; gap: 20px; align-items: start; }
+  @media (max-width: 880px) { .layout { grid-template-columns: 1fr; } }
+
+  .card { background: var(--card); border-radius: var(--radius); box-shadow: var(--shadow); padding: 20px; }
+  .card h2 { margin: 0 0 14px; font-size: 16px; }
+
+  .group { margin-bottom: 16px; }
+  .group > label { display: block; font-size: 13px; color: var(--muted); margin-bottom: 7px; }
+  .divider { height: 1px; background: var(--line); margin: 16px 0; }
+
+  .seg { display: flex; background: #eef1f6; border-radius: 10px; padding: 3px; }
+  .seg label { flex: 1; text-align: center; padding: 8px 4px; font-size: 13.5px; cursor: pointer;
+    border-radius: 8px; color: var(--muted); transition: all .15s; user-select: none; }
+  .seg input { display: none; }
+  .seg label:has(input:checked) { background: var(--card); color: var(--ink);
+    box-shadow: 0 2px 6px rgba(0,0,0,.10); font-weight: 600; }
+
+  .grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+
+  input[type=number], select { width: 100%; padding: 9px 11px; border: 1px solid var(--line);
+    border-radius: 9px; font-size: 15px; color: var(--ink); background: #fbfcfe; outline: none; }
+  input[type=number]:focus, select:focus { border-color: var(--accent); }
+
+  .check { display: flex; align-items: center; gap: 8px; font-size: 14px; cursor: pointer; }
+  .check input { width: 17px; height: 17px; accent-color: var(--accent); }
+  .hint { font-size: 12px; color: var(--muted); margin-top: 5px; }
+
+  .slider-row { display: flex; align-items: center; gap: 12px; }
+  input[type=range] { flex: 1; accent-color: var(--accent); }
+  .slider-val { min-width: 46px; text-align: center; font-weight: 700; font-size: 15px;
+    background: #eef1f6; border-radius: 8px; padding: 4px 8px; }
+
+  button.run { width: 100%; padding: 12px; border: none; border-radius: 10px; cursor: pointer;
+    background: linear-gradient(135deg, #4a78f0, #2f57d0); color: #fff; font-size: 16px;
+    font-weight: 700; letter-spacing: 2px; transition: transform .1s, filter .15s; }
+  button.run:hover { filter: brightness(1.05); }
+  button.run:active { transform: translateY(1px); }
+  button.run:disabled { filter: grayscale(.4); cursor: progress; }
+
+  .stats { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 12px; margin-bottom: 18px; }
+  .stat { background: #f7f9fc; border: 1px solid var(--line); border-radius: 11px; padding: 13px 14px; }
+  .stat .k { font-size: 12px; color: var(--muted); }
+  .stat .v { font-size: 22px; font-weight: 800; margin-top: 3px; }
+  .stat .v.big { font-size: 28px; color: var(--accent); }
+  .stat .s { font-size: 12px; color: var(--muted); margin-top: 3px; }
+
+  .chart-box { height: 250px; position: relative; margin-bottom: 18px; }
+  #charts { position: relative; }
+  .chart-title { font-size: 13px; color: var(--muted); margin: 0 0 6px; }
+
+  .loading { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center;
+    background: rgba(255,255,255,.72); border-radius: 10px; font-size: 14px; color: var(--muted); z-index: 5; }
+  .spinner { width: 18px; height: 18px; border: 3px solid #dbe1ec; border-top-color: var(--accent);
+    border-radius: 50%; animation: spin .7s linear infinite; margin-right: 8px; }
+  @keyframes spin { to { transform: rotate(360deg); } }
+
+  .error { color: var(--danger); font-size: 14px; margin-top: 10px; }
+  .hidden { display: none !important; }
+
+  details.notes { margin-top: 22px; }
+  details.notes summary { cursor: pointer; color: var(--muted); font-size: 13px; }
+  details.notes .body { font-size: 13px; color: var(--muted); background: #f7f9fc;
+    border-radius: 10px; padding: 12px 14px; margin-top: 8px; }
+  details.notes table { border-collapse: collapse; width: 100%; margin: 8px 0; }
+  details.notes td, details.notes th { border: 1px solid var(--line); padding: 5px 9px; text-align: center; font-size: 12.5px; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <h1>鸣潮 · 抽卡模拟器</h1>
+    <p>角色池 / 武器池 · 多个 UP · 武器+角色合计版 · 蒙特卡洛模拟（默认 10 万次）+ 解析精确值校验</p>
+  </header>
+
+  <div class="layout">
+    <!-- 控制面板 -->
+    <div class="card">
+      <h2>参数设置</h2>
+
+      <div class="group">
+        <label>功能</label>
+        <div class="seg">
+          <label><input type="radio" name="feature" value="1" checked><span>抽出概率</span></label>
+          <label><input type="radio" name="feature" value="2"><span>抽数期望</span></label>
+          <label><input type="radio" name="feature" value="3"><span>武器+角色 合计</span></label>
+        </div>
+      </div>
+
+      <div class="group" id="g-banner">
+        <label>抽卡池</label>
+        <div class="seg">
+          <label><input type="radio" name="banner" value="character" checked><span>角色池</span></label>
+          <label><input type="radio" name="banner" value="weapon"><span>武器池</span></label>
+        </div>
+      </div>
+
+      <!-- 功能1 专属 -->
+      <div class="group" id="g-n1">
+        <label for="n1">抽数 N</label>
+        <input type="number" id="n1" value="80" min="1" max="5000" step="1">
+      </div>
+      <div class="group" id="g-k1">
+        <label for="k1">需要的当期 UP 数量 K</label>
+        <input type="number" id="k1" value="1" min="1" max="20" step="1">
+      </div>
+
+      <!-- 功能2 专属 -->
+      <div class="group hidden" id="g-k2">
+        <label for="k2">需要的当期 UP 数量 K</label>
+        <input type="number" id="k2" value="1" min="1" max="20" step="1">
+      </div>
+
+      <!-- 功能3 专属：合计版 -->
+      <div class="hidden" id="g-combined">
+        <div class="group">
+          <label>合计模式</label>
+          <div class="seg">
+            <label><input type="radio" name="cmode" value="prob" checked><span>抽出概率</span></label>
+            <label><input type="radio" name="cmode" value="exp"><span>抽数期望</span></label>
+          </div>
+        </div>
+        <div class="grid2">
+          <div class="group">
+            <label for="c-ups">角色 UP 数量</label>
+            <input type="number" id="c-ups" value="1" min="0" max="20" step="1">
+          </div>
+          <div class="group">
+            <label for="w-ups">武器 UP 数量</label>
+            <input type="number" id="w-ups" value="1" min="0" max="20" step="1">
+          </div>
+        </div>
+        <div class="group" id="g-n3">
+          <label for="n3">总抽数预算 N</label>
+          <input type="number" id="n3" value="200" min="1" max="10000" step="1">
+        </div>
+      </div>
+
+      <div class="group">
+        <label class="check">
+          <input type="checkbox" id="guaranteed">
+          <span id="guarantee-label">下一个五星是大保底（必为当期 UP）</span>
+        </label>
+        <div class="hint" id="guarantee-hint">角色池：上个小保底歪了就打勾；武器池恒为当期 UP，此选项无效。</div>
+      </div>
+
+      <div class="group">
+        <label id="pity-label">已垫抽数（距上一个五星）</label>
+        <div class="slider-row">
+          <input type="range" id="pity" min="0" max="78" value="0" step="1">
+          <span class="slider-val" id="pity-val">0</span>
+        </div>
+        <div class="hint">范围 0 ~ 78；78 表示下一抽必出金。</div>
+      </div>
+
+      <div class="group hidden" id="g-pity-w">
+        <label>武器池已垫抽数</label>
+        <div class="slider-row">
+          <input type="range" id="pity-w" min="0" max="78" value="0" step="1">
+          <span class="slider-val" id="pity-w-val">0</span>
+        </div>
+      </div>
+
+      <div class="group">
+        <label for="trials">模拟次数</label>
+        <select id="trials">
+          <option value="10000">1 万（快速预览）</option>
+          <option value="100000" selected>10 万（标准）</option>
+          <option value="200000">20 万（更平滑）</option>
+        </select>
+      </div>
+
+      <button class="run" id="run-btn">开始模拟</button>
+      <div class="error hidden" id="err"></div>
+    </div>
+
+    <!-- 结果面板 -->
+    <div class="card" id="result-card">
+      <h2 id="result-title">模拟结果</h2>
+      <div id="stats" class="stats"></div>
+      <div id="charts">
+        <p class="chart-title" id="chart1-title"></p>
+        <div class="chart-box" id="chart1-box"></div>
+        <p class="chart-title" id="chart2-title"></p>
+        <div class="chart-box hidden" id="chart2-box"></div>
+        <div class="loading hidden" id="loading"><span class="spinner"></span>计算中，请稍候…</div>
+      </div>
+    </div>
+  </div>
+
+  <details class="notes">
+    <summary>查看概率规则与实现口径</summary>
+    <div class="body">
+      角色池与武器池的出金概率曲线相同：
+      <table>
+        <tr><th>抽数区间</th><th>出金概率</th></tr>
+        <tr><td>第 1 ~ 65 抽</td><td>固定 0.8%</td></tr>
+        <tr><td>第 66 ~ 70 抽</td><td>每抽递增 4%</td></tr>
+        <tr><td>第 71 ~ 75 抽</td><td>每抽递增 8%</td></tr>
+        <tr><td>第 76 ~ 78 抽</td><td>每抽递增 10%</td></tr>
+        <tr><td>第 79 抽</td><td>100%（硬保底）</td></tr>
+      </table>
+      角色池出金时抽到当期 UP 的概率为 50%（小保底），歪了之后下一次出金必为当期 UP（大保底）；
+      武器池出金时当期 UP 概率为 100%。
+      <br>合计版：角色池与武器池相互独立，总抽数 = 角色抽数 + 武器抽数（期望可直接相加，概率用卷积精确计算）。
+      <br>注：原文“71~75 递增 8%”与“75~78 递增 10%”在第 75 抽重叠，本程序按常见口径将 +10% 区间视为第 76~78 抽。
+    </div>
+  </details>
+</div>
+
+<script src="/static/chart.umd.min.js"></script>
+<script>
+(function () {
+  "use strict";
+  const $ = (s) => document.querySelector(s);
+  const charts = [];
+
+  function destroyCharts() { while (charts.length) charts.pop().destroy(); }
+  function makeChart(boxId) {
+    const box = document.getElementById(boxId);
+    box.querySelectorAll("canvas").forEach((c) => c.remove());
+    const cv = document.createElement("canvas");
+    box.appendChild(cv);
+    return cv;
+  }
+
+  // ---- 控件联动 ----
+  function currentFeature() {
+    return document.querySelector('input[name="feature"]:checked').value;
+  }
+  function currentBanner() {
+    return document.querySelector('input[name="banner"]:checked').value;
+  }
+
+  function updateControls() {
+    const f = currentFeature();
+    const combined = f === "3";
+    $("#g-banner").classList.toggle("hidden", combined);
+    $("#g-n1").classList.toggle("hidden", f !== "1");
+    $("#g-k1").classList.toggle("hidden", f !== "1");
+    $("#g-k2").classList.toggle("hidden", f !== "2");
+    $("#g-combined").classList.toggle("hidden", !combined);
+    $("#g-pity-w").classList.toggle("hidden", !combined);
+
+    if (combined) {
+      $("#pity-label").textContent = "角色池已垫抽数";
+      $("#guarantee-label").textContent = "角色池：下一个五星是大保底";
+    } else {
+      $("#pity-label").textContent = "已垫抽数（距上一个五星）";
+      $("#guarantee-label").textContent = "下一个五星是大保底（必为当期 UP）";
+    }
+    updateCombinedMode();
+    updateGuarantee();
+  }
+
+  function updateCombinedMode() {
+    if (currentFeature() !== "3") return;
+    const mode = document.querySelector('input[name="cmode"]:checked').value;
+    $("#g-n3").classList.toggle("hidden", mode !== "prob");
+  }
+
+  function updateGuarantee() {
+    const f = currentFeature();
+    const g = $("#guaranteed");
+    if (f === "3") {
+      g.disabled = false;
+      $("#guarantee-hint").textContent = "角色池：上个小保底歪了就打勾；武器池无 50/50，不适用此选项。";
+      return;
+    }
+    const weapon = currentBanner() === "weapon";
+    g.disabled = weapon;
+    $("#guarantee-hint").textContent = weapon
+      ? "武器池出金恒为当期 UP，无 50/50，此选项无效。"
+      : "角色池：上个小保底歪了就打勾；打勾后下一个五星必为当期 UP。";
+  }
+
+  document.querySelectorAll('input[name="feature"]').forEach((el) =>
+    el.addEventListener("change", updateControls));
+  document.querySelectorAll('input[name="banner"]').forEach((el) =>
+    el.addEventListener("change", updateGuarantee));
+  document.querySelectorAll('input[name="cmode"]').forEach((el) =>
+    el.addEventListener("change", updateCombinedMode));
+  $("#pity").addEventListener("input", () => { $("#pity-val").textContent = $("#pity").value; });
+  $("#pity-w").addEventListener("input", () => { $("#pity-w-val").textContent = $("#pity-w").value; });
+
+  // ---- 请求与渲染 ----
+  function params() {
+    const f = currentFeature();
+    const p = new URLSearchParams({ feature: f, trials: $("#trials").value });
+    if (f === "3") {
+      const mode = document.querySelector('input[name="cmode"]:checked').value;
+      p.set("mode", mode);
+      p.set("c_ups", $("#c-ups").value);
+      p.set("w_ups", $("#w-ups").value);
+      p.set("guaranteed", $("#guaranteed").checked ? "1" : "0");
+      p.set("pity_c", $("#pity").value);
+      p.set("pity_w", $("#pity-w").value);
+      if (mode === "prob") p.set("pulls", $("#n3").value);
+    } else {
+      p.set("banner", currentBanner());
+      p.set("guaranteed", $("#guaranteed").checked ? "1" : "0");
+      p.set("pity", $("#pity").value);
+      if (f === "1") { p.set("pulls", $("#n1").value); p.set("ups", $("#k1").value); }
+      else { p.set("ups", $("#k2").value); }
+    }
+    return p.toString();
+  }
+
+  function setLoading(on) { $("#loading").classList.toggle("hidden", !on); $("#run-btn").disabled = on; }
+  function showError(msg) { $("#err").textContent = msg || ""; $("#err").classList.toggle("hidden", !msg); }
+
+  const fmtPct = (x) => (x * 100).toFixed(2) + "%";
+
+  const baseBarOptions = (tooltipLabel) => ({
+    responsive: true, maintainAspectRatio: false,
+    plugins: { legend: { display: false },
+      tooltip: { callbacks: { label: (c) => tooltipLabel(c) } } },
+    scales: {
+      x: { grid: { display: false }, ticks: { maxTicksLimit: 30, font: { size: 10 } } },
+      y: { beginAtZero: true, ticks: { callback: (v) => (v * 100).toFixed(0) + "%" } },
+    },
+  });
+
+  // 抽数期望模式下的累计概率曲线（模拟 CDF + 解析精确 CDF）
+  function makeCdfChart(boxId, d, titleText, unitText) {
+    const kmax = d.cdf.length;
+    const labels = [];
+    for (let i = 1; i <= kmax; i++) labels.push(String(i));
+    $("#chart2-box").classList.remove("hidden");
+    $("#chart2-title").textContent = titleText;
+    charts.push(new Chart(makeChart(boxId), {
+      type: "line",
+      data: { labels, datasets: [
+        { label: "模拟累计概率", data: d.cdf, borderColor: "#18a06b",
+          backgroundColor: "rgba(24,160,107,.10)", fill: true, tension: 0.25, pointRadius: 0, borderWidth: 2 },
+        { label: "解析精确值", data: d.exact_cdf, borderColor: "#c44e52",
+          borderDash: [5, 3], fill: false, tension: 0.25, pointRadius: 0, borderWidth: 1.5 },
+      ] },
+      options: {
+        responsive: true, maintainAspectRatio: false,
+        plugins: {
+          legend: { display: true, labels: { boxWidth: 16, font: { size: 11 } } },
+          tooltip: { callbacks: { label: (c) => c.dataset.label + "：前 " + c.label + " " + unitText + "累计 " + fmtPct(c.parsed.y) } },
+        },
+        scales: {
+          x: { grid: { display: false }, ticks: { maxTicksLimit: 30, font: { size: 10 } } },
+          y: { beginAtZero: true, max: 1.05, ticks: { callback: (v) => (v * 100).toFixed(0) + "%" } },
+        },
+      },
+    }));
+  }
+
+  function renderFeature1(d) {
+    $("#result-title").textContent =
+      (d.banner === "character" ? "角色池" : "武器池") +
+      ` · ${d.n_pulls} 抽内抽齐 ${d.k_ups} 个当期 UP 的概率`;
+
+    $("#stats").innerHTML = `
+      <div class="stat"><div class="k">模拟概率（蒙特卡洛）</div>
+        <div class="v big">${fmtPct(d.prob)}</div>
+        <div class="s">${d.trials.toLocaleString()} 次模拟</div></div>
+      <div class="stat"><div class="k">解析精确值</div>
+        <div class="v">${fmtPct(d.exact)}</div>
+        <div class="s">动态规划</div></div>
+      <div class="stat"><div class="k">标准误</div>
+        <div class="v">±${(d.se * 100).toFixed(3)}%</div>
+        <div class="s">已垫 ${d.pity} 抽${d.guaranteed ? " · 大保底" : ""}</div></div>
+    `;
+
+    const n = d.n_pulls, K = d.k_ups;
+    const labels = [];
+    for (let i = 1; i <= n; i++) labels.push(String(i));
+    const pmf = d.pmf.slice(0, n);
+    const miss = d.pmf[n];
+    const colors = pmf.map(() => "#4a78f0");
+
+    $("#chart1-title").textContent = `第 k 抽凑齐第 ${K} 个当期 UP 的概率分布（PMF）`;
+    $("#chart2-box").classList.remove("hidden");
+    $("#chart2-title").textContent = "累计概率 CDF：k 抽内凑齐";
+
+    charts.push(new Chart(makeChart("chart1-box"), {
+      type: "bar",
+      data: { labels: labels.concat("未齐"),
+        datasets: [{ label: "概率", data: pmf.concat(miss),
+          backgroundColor: colors.concat("#d9534f"), borderWidth: 0, borderRadius: 2 }] },
+      options: baseBarOptions((c) =>
+        c.dataIndex === n ? `${n} 抽内未凑齐：` + fmtPct(miss)
+                          : `第 ${c.label} 抽凑齐：` + fmtPct(c.parsed.y)),
+    }));
+
+    charts.push(new Chart(makeChart("chart2-box"), {
+      type: "line",
+      data: { labels,
+        datasets: [{ label: "累计概率", data: d.cdf,
+          borderColor: "#18a06b", backgroundColor: "rgba(24,160,107,.12)",
+          fill: true, tension: 0.25, pointRadius: 0, borderWidth: 2 }] },
+      options: {
+        responsive: true, maintainAspectRatio: false,
+        plugins: { legend: { display: false },
+          tooltip: { callbacks: { label: (c) => "前 " + c.label + " 抽累计：" + fmtPct(c.parsed.y) } } },
+        scales: {
+          x: { grid: { display: false }, ticks: { maxTicksLimit: 30, font: { size: 10 } } },
+          y: { beginAtZero: true, max: 1.05, ticks: { callback: (v) => (v * 100).toFixed(0) + "%" } },
+        },
+      },
+    }));
+  }
+
+  function renderFeature2(d) {
+    $("#result-title").textContent =
+      (d.banner === "character" ? "角色池" : "武器池") +
+      ` · 抽出 ${d.k_ups} 个当期 UP 所需抽数期望`;
+
+    $("#stats").innerHTML = `
+      <div class="stat"><div class="k">期望抽数（蒙特卡洛）</div>
+        <div class="v big">${d.mean.toFixed(2)} 抽</div>
+        <div class="s">${d.trials.toLocaleString()} 次模拟</div></div>
+      <div class="stat"><div class="k">解析精确值</div>
+        <div class="v">${d.exact.toFixed(2)} 抽</div>
+        <div class="s">动态规划</div></div>
+      <div class="stat"><div class="k">中位数 / 标准差</div>
+        <div class="v">${d.median.toFixed(1)} / ${d.std.toFixed(2)}</div>
+        <div class="s">标准误 ±${d.se.toFixed(2)} 抽</div></div>
+      <div class="stat"><div class="k">初始状态</div>
+        <div class="v">垫 ${d.pity} 抽</div>
+        <div class="s">${d.guaranteed ? "下一个是大保底" : "小保底（50/50）"}</div></div>
+    `;
+
+    const edges = d.hist_edges, counts = d.hist_counts;
+    const labels = edges.slice(0, -1).map((e, i) => String(Math.round((e + edges[i + 1]) / 2)));
+    $("#chart1-title").textContent = `抽出 ${d.k_ups} 个当期 UP 所需抽数分布`;
+
+    charts.push(new Chart(makeChart("chart1-box"), {
+      type: "bar",
+      data: { labels,
+        datasets: [{ label: "频数", data: counts, backgroundColor: "#4a78f0", borderWidth: 0, borderRadius: 2 }] },
+      options: {
+        responsive: true, maintainAspectRatio: false,
+        plugins: { legend: { display: false },
+          tooltip: { callbacks: { label: (c) => "约 " + c.label + " 抽：" + c.parsed.y.toLocaleString() + " 次" } } },
+        scales: {
+          x: { grid: { display: false }, ticks: { maxTicksLimit: 20, font: { size: 10 } } },
+          y: { beginAtZero: true, ticks: { callback: (v) => v.toLocaleString() } },
+        },
+      },
+    }));
+
+    makeCdfChart("chart2-box", d,
+      `累计概率 CDF：k 抽内凑齐 ${d.k_ups} 个当期 UP`, "抽");
+  }
+
+  function renderFeature3(d) {
+    const desc = `${d.c_ups} 角色 + ${d.w_ups} 武器`;
+    const initState = `角色垫 ${d.pity_c}${d.guaranteed ? "·大保底" : ""} · 武器垫 ${d.pity_w}`;
+
+    if (d.mode === "prob") {
+      $("#result-title").textContent = `武器+角色合计 · ${d.n_pulls} 总抽内抽齐（${desc}）的概率`;
+
+      $("#stats").innerHTML = `
+        <div class="stat"><div class="k">模拟概率（蒙特卡洛）</div>
+          <div class="v big">${fmtPct(d.prob)}</div>
+          <div class="s">总抽 ≤ ${d.n_pulls} · ${d.trials.toLocaleString()} 次</div></div>
+        <div class="stat"><div class="k">解析精确值</div>
+          <div class="v">${fmtPct(d.exact)}</div>
+          <div class="s">卷积精确解</div></div>
+        <div class="stat"><div class="k">期望总抽数</div>
+          <div class="v">${d.mean.toFixed(2)} 抽</div>
+          <div class="s">精确 ${d.exp_exact.toFixed(2)} 抽</div></div>
+        <div class="stat"><div class="k">初始状态</div>
+          <div class="v">${initState}</div>
+          <div class="s">标准误 ±${(d.se * 100).toFixed(3)}%</div></div>
+      `;
+
+      const n = d.n_pulls;
+      const labels = [];
+      for (let i = 1; i <= n; i++) labels.push(String(i));
+
+      $("#chart1-title").textContent = "累计概率 CDF：k 总抽内抽齐（角色+武器）";
+      $("#chart2-box").classList.remove("hidden");
+      $("#chart2-title").textContent = "总抽数分布直方图";
+
+      charts.push(new Chart(makeChart("chart1-box"), {
+        type: "line",
+        data: { labels,
+          datasets: [{ label: "累计概率", data: d.cdf,
+            borderColor: "#18a06b", backgroundColor: "rgba(24,160,107,.12)",
+            fill: true, tension: 0.25, pointRadius: 0, borderWidth: 2 }] },
+        options: {
+          responsive: true, maintainAspectRatio: false,
+          plugins: { legend: { display: false },
+            tooltip: { callbacks: { label: (c) => "前 " + c.label + " 总抽累计：" + fmtPct(c.parsed.y) } } },
+          scales: {
+            x: { grid: { display: false }, ticks: { maxTicksLimit: 30, font: { size: 10 } } },
+            y: { beginAtZero: true, max: 1.05, ticks: { callback: (v) => (v * 100).toFixed(0) + "%" } },
+          },
+        },
+      }));
+
+      const edges = d.hist_edges, counts = d.hist_counts;
+      const hlabels = edges.slice(0, -1).map((e, i) => String(Math.round((e + edges[i + 1]) / 2)));
+      charts.push(new Chart(makeChart("chart2-box"), {
+        type: "bar",
+        data: { labels: hlabels,
+          datasets: [{ label: "频数", data: counts, backgroundColor: "#4a78f0", borderWidth: 0, borderRadius: 2 }] },
+        options: {
+          responsive: true, maintainAspectRatio: false,
+          plugins: { legend: { display: false },
+            tooltip: { callbacks: { label: (c) => "约 " + c.label + " 抽：" + c.parsed.y.toLocaleString() + " 次" } } },
+          scales: {
+            x: { grid: { display: false }, ticks: { maxTicksLimit: 20, font: { size: 10 } } },
+            y: { beginAtZero: true, ticks: { callback: (v) => v.toLocaleString() } },
+          },
+        },
+      }));
+    } else {
+      $("#result-title").textContent = `武器+角色合计 · 抽齐（${desc}）所需总抽数期望`;
+
+      $("#stats").innerHTML = `
+        <div class="stat"><div class="k">期望总抽数（蒙特卡洛）</div>
+          <div class="v big">${d.mean.toFixed(2)} 抽</div>
+          <div class="s">${d.trials.toLocaleString()} 次模拟</div></div>
+        <div class="stat"><div class="k">解析精确值</div>
+          <div class="v">${d.exact.toFixed(2)} 抽</div>
+          <div class="s">动态规划（期望相加）</div></div>
+        <div class="stat"><div class="k">中位数 / 标准差</div>
+          <div class="v">${d.median.toFixed(1)} / ${d.std.toFixed(2)}</div>
+          <div class="s">标准误 ±${d.se.toFixed(2)} 抽</div></div>
+        <div class="stat"><div class="k">初始状态</div>
+          <div class="v">${initState}</div>
+          <div class="s">${d.c_ups} 角色 + ${d.w_ups} 武器</div></div>
+      `;
+
+      const edges = d.hist_edges, counts = d.hist_counts;
+      const hlabels = edges.slice(0, -1).map((e, i) => String(Math.round((e + edges[i + 1]) / 2)));
+      $("#chart1-title").textContent = `抽齐（${desc}）所需总抽数分布`;
+
+      charts.push(new Chart(makeChart("chart1-box"), {
+        type: "bar",
+        data: { labels: hlabels,
+          datasets: [{ label: "频数", data: counts, backgroundColor: "#4a78f0", borderWidth: 0, borderRadius: 2 }] },
+        options: {
+          responsive: true, maintainAspectRatio: false,
+          plugins: { legend: { display: false },
+            tooltip: { callbacks: { label: (c) => "约 " + c.label + " 抽：" + c.parsed.y.toLocaleString() + " 次" } } },
+          scales: {
+            x: { grid: { display: false }, ticks: { maxTicksLimit: 20, font: { size: 10 } } },
+            y: { beginAtZero: true, ticks: { callback: (v) => v.toLocaleString() } },
+          },
+        },
+      }));
+
+      makeCdfChart("chart2-box", d,
+        `累计概率 CDF：k 总抽内抽齐（${desc}）`, "总抽");
+    }
+  }
+
+  async function run() {
+    showError("");
+    destroyCharts();
+    setLoading(true);
+    try {
+      const res = await fetch("/api/simulate?" + params());
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "请求失败");
+      if (data.feature === 1) renderFeature1(data);
+      else if (data.feature === 2) renderFeature2(data);
+      else renderFeature3(data);
+    } catch (e) {
+      showError("出错了：" + e.message);
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  $("#run-btn").addEventListener("click", run);
+  updateControls();
+  run();
+})();
+</script>
+</body>
+</html>
